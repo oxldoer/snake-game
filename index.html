@@ -324,8 +324,11 @@
     function showEasterEggPopup() {
         var duration = 2500;
         easterEggPopup = { startTime: performance.now(), duration: duration };
-        // 彩蛋横幅显示期间暂停蛇移动
-        if (gameInterval) { clearInterval(gameInterval); gameInterval = null; }
+        // 彩蛋横幅显示期间蛇降速
+        if (gameInterval) {
+            clearInterval(gameInterval);
+            gameInterval = setInterval(gameTick, 2000);
+        }
     }
 
     function renderScorePopup(ts) {
@@ -357,8 +360,9 @@
         var progress = elapsed / easterEggPopup.duration;
         if (progress >= 1) {
             easterEggPopup = null;
-            // 横幅结束，恢复蛇移动
-            if (gameState === 'playing' && !gameInterval) {
+            // 横幅结束，恢复正常速度
+            if (gameState === 'playing') {
+                if (gameInterval) clearInterval(gameInterval);
                 startGameLoop();
             }
             return;
@@ -387,7 +391,7 @@
         ctx.textBaseline = 'middle';
         ctx.shadowColor = 'rgba(245,158,11,0.5)';
         ctx.shadowBlur = 15;
-        ctx.fillText('🎉来自欧某人的祝福！+100🎉', px, py);
+        ctx.fillText('🎉来自欧某人的偏爱！+100🎉', px, py);
 
         // 小小金粒子装饰
         if (progress < 0.4) {

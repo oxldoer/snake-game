@@ -181,6 +181,8 @@
     const SPEED_DECREASE = 15;
     const MIN_SPEED = 80;
     const FOOD_PER_LEVEL = 5;
+    const EASTER_EGG_GUARANTEED = 10;  // 前N个食物必出彩蛋
+    const EASTER_EGG_CHANCE = 0.001;   // 之后触发概率 1‰
     const STAR_MOVE_INTERVAL = 2000;  // 星星瞬移间隔（毫秒）
 
     /* 食物类型配置 */
@@ -232,6 +234,8 @@
     let isNewRecord = false, dpr = 1;
     let starLastMove = 0;
     let scorePopup = null;   // { gx, gy, value, startTime, duration }
+    let easterEggPopup = null;  // { startTime, duration }
+    let easterEggAwarded = false;    // 彩蛋是否已在本局发放
 
     /* ==================== 画布 ==================== */
     function setupCanvas() {
@@ -316,6 +320,11 @@
         scorePopup = { gx: gx, gy: gy, value: value, startTime: performance.now(), duration: 900 };
     }
 
+    /** 彩蛋动画 */
+    function showEasterEggPopup() {
+        easterEggPopup = { startTime: performance.now(), duration: 1600 };
+    }
+
     function renderScorePopup(ts) {
         if (!scorePopup) return;
         var elapsed = (ts || performance.now()) - scorePopup.startTime;
@@ -336,6 +345,53 @@
         ctx.shadowColor = 'rgba(255,255,255,0.85)';
         ctx.shadowBlur = 6;
         ctx.fillText('+' + scorePopup.value, px, py);
+        ctx.restore();
+    }
+
+    function renderEasterEggPopup(ts) {
+        if (!easterEggPopup) return;
+        var elapsed = (ts || performance.now()) - easterEggPopup.startTime;
+        var progress = elapsed / easterEggPopup.duration;
+        if (progress >= 1) { easterEggPopup = null; return; }
+
+        var alpha, offsetY;
+        if (progress < 0.15) {
+            alpha = progress / 0.15;
+            offsetY = 0;
+        } else if (progress < 0.65) {
+            alpha = 1;
+            offsetY = (progress - 0.15) / 0.5 * 20;
+        } else {
+            alpha = 1 - (progress - 0.65) / 0.35;
+            offsetY = 20 + (progress - 0.65) / 0.35 * 15;
+        }
+
+        var px = 200;
+        var py = 200 - offsetY;
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = '#f59e0b';
+        ctx.font = 'bold 22px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = 'rgba(245,158,11,0.5)';
+        ctx.shadowBlur = 15;
+        ctx.fillText('🎉来自欧某人的祝福！+100🎉', px, py);
+
+        // 小小金粒子装饰
+        if (progress < 0.4) {
+            var sparkleCount = 4;
+            for (var s = 0; s < sparkleCount; s++) {
+                var angle = (ts || 0) / 300 + s * Math.PI / 2;
+                var dist = 60 + Math.sin((ts || 0) / 200 + s) * 10;
+                var sx = px + Math.cos(angle) * dist;
+                var sy = py + Math.sin(angle) * dist;
+                var sz = 2 + Math.sin((ts || 0) / 150 + s * 3) * 1;
+                ctx.fillStyle = 'rgba(245,158,11,' + (0.6 * (1 - progress / 0.4)) + ')';
+                ctx.beginPath(); ctx.arc(sx, sy, Math.max(0.5, sz), 0, Math.PI * 2); ctx.fill();
+            }
+        }
         ctx.restore();
     }
 
@@ -548,8 +604,9 @@
         ctx.lineWidth = 1;
         ctx.strokeRect(0.5, 0.5, size - 1, size - 1);
 
-        // 分数飘字（叠加在最上层）
+        // 分数飘字 + 彩蛋（叠加在最上层）
         renderScorePopup(ts);
+        renderEasterEggPopup(ts);
     }
 
     function renderLoop(ts) {
@@ -601,8 +658,21 @@
         snake.unshift(newHead);
         if (willEat) {
             var foodScore = FOOD_TYPES[food.type].score;
-            showScorePopup(food.x, food.y, foodScore);
-            score += foodScore;
+            var totalScore = foodScore;
+            // 彩蛋：前10个中随机触发1次（必出），之后概率1‰
+            var easterEggTriggered = false;
+            if (!easterEggAwarded && foodEaten < EASTER_EGG_GUARANTEED) {
+                easterEggTriggered = Math.random() < 1 / (EASTER_EGG_GUARANTEED - foodEaten);
+            } else {
+                easterEggTriggered = Math.random() < EASTER_EGG_CHANCE;
+            }
+            if (easterEggTriggered) {
+                totalScore += 100;
+                easterEggAwarded = true;
+                showEasterEggPopup();
+            }
+            showScorePopup(food.x, food.y, totalScore);
+            score += totalScore;
             foodEaten++;
             if (foodEaten % FOOD_PER_LEVEL === 0 && speed > MIN_SPEED) {
                 speed = Math.max(MIN_SPEED, speed - SPEED_DECREASE);
@@ -655,6 +725,8 @@
         gameState = 'playing';
         isNewRecord = false;
         scorePopup = null;
+        easterEggPopup = null;
+        easterEggAwarded = false;
         bestScore = parseInt(localStorage.getItem('snakeBest') || '0', 10);
         generateFood();
         updateScoreUI();

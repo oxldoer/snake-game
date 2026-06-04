@@ -322,7 +322,10 @@
 
     /** 彩蛋动画 */
     function showEasterEggPopup() {
-        easterEggPopup = { startTime: performance.now(), duration: 1600 };
+        var duration = 2500;
+        easterEggPopup = { startTime: performance.now(), duration: duration };
+        // 彩蛋横幅显示期间暂停蛇移动
+        if (gameInterval) { clearInterval(gameInterval); gameInterval = null; }
     }
 
     function renderScorePopup(ts) {
@@ -352,7 +355,14 @@
         if (!easterEggPopup) return;
         var elapsed = (ts || performance.now()) - easterEggPopup.startTime;
         var progress = elapsed / easterEggPopup.duration;
-        if (progress >= 1) { easterEggPopup = null; return; }
+        if (progress >= 1) {
+            easterEggPopup = null;
+            // 横幅结束，恢复蛇移动
+            if (gameState === 'playing' && !gameInterval) {
+                startGameLoop();
+            }
+            return;
+        }
 
         var alpha, offsetY;
         if (progress < 0.15) {
